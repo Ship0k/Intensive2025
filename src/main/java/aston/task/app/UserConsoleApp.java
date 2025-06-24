@@ -12,6 +12,8 @@ import aston.task.service.UserServiceImpl;
 import aston.task.validation.Validator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hibernate.SessionFactory;
+import org.hibernate.cfg.Configuration;
 
 public class UserConsoleApp {
 
@@ -19,7 +21,8 @@ public class UserConsoleApp {
 
     public static void main(String[] args) {
         logger.info("Запуск приложения");
-        UserDao userDao = new UserDaoImpl();
+        SessionFactory factory = new Configuration().configure().buildSessionFactory();
+        UserDao userDao = new UserDaoImpl(factory);
         UserService userService = new UserServiceImpl(userDao);
         Scanner scanner = new Scanner(System.in);
 
@@ -45,10 +48,7 @@ public class UserConsoleApp {
                     System.out.print("Введите возраст: ");
                     int age = Validator.getValidatedInt(scanner);
 
-                    User user = new User();
-                    user.setName(name);
-                    user.setEmail(email);
-                    user.setAge(age);
+                    User user = new User(name, email, age);
                     logger.debug("Попытка создать пользователя: {}", user);
 
                     try {
