@@ -15,7 +15,10 @@ public class User {
     private Long id;
 
     private String name;
+
+    @Column(unique = true)
     private String email;
+
     private int age;
 
     @Column(name = "created_at", updatable = false)

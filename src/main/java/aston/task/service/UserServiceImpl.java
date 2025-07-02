@@ -1,83 +1,64 @@
 package aston.task.service;
 
-import aston.task.dao.UserDao;
 import aston.task.entity.User;
-import aston.task.exception.DataAccessException;
+import aston.task.dto.UserDto;
 import aston.task.exception.UserNotFoundException;
-import aston.task.exception.UserServiceException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import aston.task.mapper.UserMapper;
+import aston.task.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
-    private static final Logger logger = LogManager.getLogger(UserServiceImpl.class);
-    private final UserDao userDao;
 
-    public UserServiceImpl(UserDao userDao) {
-        this.userDao = userDao;
+    private final UserRepository userRepository;
+
+    @Override
+    public UserDto getUserDtoById(Long id) {
+        log.info("Запрошен пользователь с ID {}", id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь с ID " + id + " не найден"));
+        return UserMapper.toDto(user);
     }
 
     @Override
-    public void createUser(User user) {
-        logger.info("Создание пользователя: {}", user);
-        try {
-            userDao.save(user);
-        } catch (DataAccessException e) {
-            logger.error("Ошибка при создании пользователя: {}", user, e);
-            throw new UserServiceException("Не удалось создать пользователя", e);
-        }
+    public List<UserDto> getAllUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(UserMapper::toDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public User getUserById(Long id) {
-        logger.debug("Получение пользователя по ID: {}", id);
-        try {
-            User user = userDao.findById(id);
-            if (user == null) {
-                logger.warn("Пользователь с ID {} не найден", id);
-                throw new UserNotFoundException("Пользователь с ID " + id + " не найден");
-            }
-            logger.info("Пользователь найден: {}", user);
-            return user;
-        } catch (DataAccessException e) {
-            logger.error("Ошибка при поиске пользователя с ID {}: {}", id, e.getMessage());
-            throw new UserServiceException("Ошибка доступа при получении пользователя", e);
-        }
+    public void createUser(UserDto dto) {
+        User user = UserMapper.fromDto(dto);
+        userRepository.save(user);
+        log.info("Создан пользователь: {}", user);
     }
 
     @Override
-    public void updateUser(User user) {
-        Long userId = user.getId();
-        logger.debug("Обновление пользователя ID: {}", userId);
-        if (userId == null) {
-            logger.warn("Попытка обновления пользователя без ID");
-            throw new IllegalArgumentException("ID пользователя не указан");
-        }
-        try {
-            if (userDao.findById(userId) == null) {
-                logger.warn("Обновление невозможно: пользователь с ID {} не найден", userId);
-                throw new UserNotFoundException("Невозможно обновить: пользователь не найден");
-            }
-            userDao.update(user);
-            logger.info("Пользователь обновлен: {}", user);
-        } catch (DataAccessException e) {
-            logger.error("Ошибка при обновлении пользователя: {}", user, e);
-            throw new UserServiceException("Не удалось обновить пользователя", e);
-        }
+    public void updateUser(Long id, UserDto dto) {
+        User existing = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь с ID " + id + " не найден"));
+        existing.setName(dto.name());
+        existing.setEmail(dto.email());
+        existing.setAge(dto.age());
+        userRepository.save(existing);
+        log.info("Обновлён пользователь: {}", existing);
     }
 
     @Override
     public void deleteUserById(Long id) {
-        logger.debug("Попытка удалить пользователя с ID {}", id);
-        try {
-            boolean deleted = userDao.delete(id);
-            if (!deleted) {
-                logger.warn("Удаление не удалось: пользователь с ID {} не найден", id);
-                throw new UserNotFoundException("Удаление не удалось: пользователь не найден");
-            }
-            logger.info("Пользователь с ID {} успешно удалён", id);
-        } catch (DataAccessException e) {
-            logger.error("Ошибка при удалении пользователя с ID {}: {}", id, e.getMessage());
-            throw new UserServiceException("Ошибка при удалении пользователя", e);
+        if (!userRepository.existsById(id)) {
+            throw new UserNotFoundException("Пользователь с ID " + id + " не существует");
         }
+        userRepository.deleteById(id);
+        log.info("Удалён пользователь с ID {}", id);
     }
 }
