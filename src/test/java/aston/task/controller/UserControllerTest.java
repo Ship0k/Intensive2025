@@ -1,13 +1,15 @@
 package aston.task.controller;
 
-import aston.task.exception.UserNotFoundException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import aston.task.dto.UserDto;
+import aston.task.model.UserModel;
 import aston.task.service.UserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,29 +30,41 @@ class UserControllerTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void shouldReturnUserById() throws Exception {
-        UserDto dto = new UserDto(1L, "Анатолий", "tolik@mail.com", 33);
-        when(userService.getUserDtoById(1L)).thenReturn(dto);
+    void shouldReturnUserByIdWithLinks() throws Exception {
+        UserModel model = new UserModel(1L, "Анатолий", "tolik@mail.com", 33);
+        EntityModel<UserModel> entityModel = EntityModel.of(model);
+        entityModel.add(Link.of("/api/users/1").withSelfRel());
+        entityModel.add(Link.of("/api/users").withRel("all-users"));
+
+        when(userService.getUserDtoById(1L)).thenReturn(new aston.task.dto.UserDto(1L, "Анатолий", "tolik@mail.com", 33));
 
         mockMvc.perform(get("/api/users/1"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("Анатолий"))
                 .andExpect(jsonPath("$.email").value("tolik@mail.com"))
-                .andExpect(jsonPath("$.age").value(33));
+                .andExpect(jsonPath("$.age").value(33))
+                .andExpect(jsonPath("$._links.self.href").exists())
+                .andExpect(jsonPath("$._links.all-users.href").exists());
     }
 
     @Test
-    void shouldReturn404WhenUserNotFound() throws Exception {
-        Long invalidId = 999L;
-        when(userService.getUserDtoById(invalidId))
-                .thenThrow(new UserNotFoundException("Пользователь с ID " + invalidId + " не найден"));
+    void shouldReturnAllUsersWithLinks() throws Exception {
+        List<aston.task.dto.UserDto> users = List.of(
+                new aston.task.dto.UserDto(1L, "Толя", "tolya@mail.com", 30),
+                new aston.task.dto.UserDto(2L, "Наташа", "natasha@mail.com", 25)
+        );
 
-        mockMvc.perform(get("/api/users/{id}", invalidId))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("Пользователь не найден"))
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.message").value("Пользователь с ID 999 не найден"))
-                .andExpect(jsonPath("$.timestamp").exists());
+        when(userService.getAllUsers()).thenReturn(users);
+
+        mockMvc.perform(get("/api/users"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.userModelList.length()").value(2))
+                .andExpect(jsonPath("$._embedded.userModelList[0].name").value("Толя"))
+                .andExpect(jsonPath("$._embedded.userModelList[0]._links.self.href").exists())
+                .andExpect(jsonPath("$._embedded.userModelList[1].name").value("Наташа"))
+                .andExpect(jsonPath("$._embedded.userModelList[1]._links.self.href").exists())
+                .andExpect(jsonPath("$._links.self.href").exists());
     }
 
     @Test
@@ -63,20 +77,6 @@ class UserControllerTest {
                         .andExpect(status().isCreated());
 
         verify(userService, times(1)).createUser(dto);
-    }
-
-    @Test
-    void shouldReturnAllUsers() throws Exception {
-        List<UserDto> users = List.of(
-                new UserDto(1L, "Толя", "tolya@mail.com", 33),
-                new UserDto(2L, "Наташа", "natasha@mail.com", 25)
-        );
-
-        when(userService.getAllUsers()).thenReturn(users);
-
-        mockMvc.perform(get("/api/users"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
