@@ -2,8 +2,6 @@ server:
   port: 8079
 
 spring:
-  application:
-    name: gateway-service
   main:
     web-application-type: reactive
 
